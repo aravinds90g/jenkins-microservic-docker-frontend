@@ -5,6 +5,7 @@ pipeline {
         DOCKER_IMAGE = 'modern-storefront'
         CONTAINER_NAME = 'modern-storefront'
         HOST_PORT = '3000'
+        NEXT_PUBLIC_API_URL = 'http://localhost:8080'
     }
 
     stages {
@@ -17,7 +18,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build -t ${DOCKER_IMAGE}:latest .
+                    docker build \\
+                      --build-arg NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL} \\
+                      -t ${DOCKER_IMAGE}:latest .
                 '''
             }
         }
