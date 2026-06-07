@@ -37,9 +37,21 @@ pipeline {
         stage('Verify Container') {
             steps {
                 sh '''
-                    sleep 3
-                    docker ps --filter name=${CONTAINER_NAME} --format "{{.ID}} {{.Status}}"
-                    curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT}
+                    echo "Waiting for application to be ready..."
+                    for i in $(seq 1 30); do
+                        code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT} || true)
+                        if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "301" ]; then
+                            echo "Application is ready (HTTP $code)"
+                            exit 0
+                        fi
+                        echo "Waiting... (attempt $i, HTTP $code)"
+                        sleep 2
+                    done
+                    echo "Application failed to start within 60 seconds"
+                    echo "--- Container logs ---"
+                    docker logs ${CONTAINER_NAME} 2>&1 || true
+                    echo "----------------------"
+                    exit 1
                 '''
             }
         }
@@ -56,6 +68,9 @@ pipeline {
             echo "Pipeline completed successfully!"
         }
         failure {
+            sh '''
+                docker logs ${CONTAINER_NAME} 2>&1 || true
+            '''
             echo "Pipeline failed."
         }
     }
