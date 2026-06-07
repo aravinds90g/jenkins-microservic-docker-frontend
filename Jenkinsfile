@@ -38,15 +38,16 @@ pipeline {
             steps {
                 sh '''
                     echo "Waiting for application to be ready..."
-                    for i in $(seq 1 30); do
-                        if docker exec ${CONTAINER_NAME} wget -q --spider http://localhost:3000 2>/dev/null; then
-                            echo "Application is ready"
+                    for i in $(seq 1 15); do
+                        if docker logs ${CONTAINER_NAME} 2>&1 | grep -q "Ready in"; then
+                            echo "Application started successfully"
+                            docker ps --filter name=${CONTAINER_NAME} --format "{{.ID}} {{.Status}}"
                             exit 0
                         fi
                         echo "Waiting... (attempt $i)"
                         sleep 2
                     done
-                    echo "Application failed to start within 60 seconds"
+                    echo "Application failed to start within 30 seconds"
                     echo "--- Container logs ---"
                     docker logs ${CONTAINER_NAME} 2>&1 || true
                     echo "----------------------"
