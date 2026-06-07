@@ -39,12 +39,11 @@ pipeline {
                 sh '''
                     echo "Waiting for application to be ready..."
                     for i in $(seq 1 30); do
-                        code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT} || true)
-                        if [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "301" ]; then
-                            echo "Application is ready (HTTP $code)"
+                        if docker exec ${CONTAINER_NAME} wget -q --spider http://localhost:3000 2>/dev/null; then
+                            echo "Application is ready"
                             exit 0
                         fi
-                        echo "Waiting... (attempt $i, HTTP $code)"
+                        echo "Waiting... (attempt $i)"
                         sleep 2
                     done
                     echo "Application failed to start within 60 seconds"
@@ -55,13 +54,19 @@ pipeline {
                 '''
             }
         }
+
+        stage('Print Container Info') {
+            steps {
+                sh '''
+                    echo "Frontend running at: http://$(hostname -I | awk '{print $1}'):${HOST_PORT}"
+                    echo "Container: ${CONTAINER_NAME}"
+                '''
+            }
+        }
     }
 
     post {
         always {
-            sh '''
-                docker rm -f ${CONTAINER_NAME} || true
-            '''
             cleanWs()
         }
         success {
