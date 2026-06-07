@@ -3,9 +3,8 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = 'modern-storefront'
-        DOCKER_TAG = "${env.BUILD_NUMBER}"
-        REGISTRY = 'your-docker-registry.io'
-        NODE_VERSION = '18'
+        CONTAINER_NAME = 'modern-storefront'
+        HOST_PORT = '3000'
     }
 
     stages {
@@ -15,58 +14,29 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Build Docker Image') {
             steps {
                 sh '''
-                    npm ci
+                    docker build -t ${DOCKER_IMAGE}:latest .
                 '''
             }
         }
 
-        stage('Lint') {
+        stage('Run Container') {
             steps {
                 sh '''
-                    npm run lint
+                    docker rm -f ${CONTAINER_NAME} || true
+                    docker run -d --name ${CONTAINER_NAME} -p ${HOST_PORT}:3000 ${DOCKER_IMAGE}:latest
                 '''
             }
         }
 
-        stage('Build') {
+        stage('Verify Container') {
             steps {
                 sh '''
-                    npm run build
-                '''
-            }
-        }
-
-        stage('Build & Tag Docker Image') {
-            steps {
-                script {
-                    docker.build(
-                        "${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}",
-                        "."
-                    )
-                    docker.image("${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}").tag("${REGISTRY}/${DOCKER_IMAGE}:latest")
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    docker.withRegistry("https://${REGISTRY}", 'docker-registry-credentials') {
-                        docker.image("${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}").push()
-                        docker.image("${REGISTRY}/${DOCKER_IMAGE}:latest").push()
-                    }
-                }
-            }
-        }
-
-        stage('Deploy') {
-            steps {
-                sh '''
-                    echo "Deploying ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}"
-                    # Add your deploy commands here (e.g. kubectl set image, docker stack deploy, etc.)
+                    sleep 3
+                    docker ps --filter name=${CONTAINER_NAME} --format "{{.ID}} {{.Status}}"
+                    curl -s -o /dev/null -w "%{http_code}" http://localhost:${HOST_PORT}
                 '''
             }
         }
@@ -74,6 +44,9 @@ pipeline {
 
     post {
         always {
+            sh '''
+                docker rm -f ${CONTAINER_NAME} || true
+            '''
             cleanWs()
         }
         success {
